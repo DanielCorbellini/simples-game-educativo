@@ -1,0 +1,632 @@
+using System.Collections.Generic;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+
+namespace EducationalGame.Editor
+{
+    /// <summary>
+    /// Script de Editor para geração procedural do layout físico escolar 3D.
+    /// Cria 1 corredor central e 4 salas fechadas temáticas (Matemática, Português, História e Lógica).
+    /// Converte e garante automaticamente materiais URP (Universal Render Pipeline) em todos os assets.
+    /// </summary>
+    public static class SchoolMapGenerator
+    {
+        // -------------------------------------------------------------------------
+        // Constantes de Grade e Dimensões (Calibradas com base nos assets do projeto)
+        // -------------------------------------------------------------------------
+        private const float TILE_X = 4.42f;              // Largura de cada módulo de piso
+        private const float TILE_Z = 5.34f;              // Comprimento de cada módulo de piso/parede
+        private const float WALL_HEIGHT = 4.4f;          // Altura padrão das paredes
+        private const float DEFAULT_WALL_LENGTH = 5.3358f; // Comprimento original da malha wall.fbx
+        private const float DOOR_WIDTH = 2.56f;          // Largura da malha a door1.fbx
+        private const float DOOR_HEIGHT = 2.39f;         // Altura da abertura da porta
+
+        // -------------------------------------------------------------------------
+        // Caminhos dos Prefabs e Materiais em Assets/school
+        // -------------------------------------------------------------------------
+        private const string PATH_FLOOR = "Assets/school/Prefabs/road/floor.prefab";
+        private const string PATH_WALL = "Assets/school/Prefabs/props/wall.prefab";
+        private const string PATH_WALL_WINDOW = "Assets/school/Prefabs/props/wall001.prefab";
+        private const string PATH_DOOR = "Assets/school/Prefabs/props/a door1.prefab";
+        private const string PATH_BOARD = "Assets/school/Prefabs/props/board.prefab";
+        private const string PATH_TEACHER_DESK = "Assets/school/Prefabs/props/table1.prefab";
+        private const string PATH_STUDENT_DESK = "Assets/school/Prefabs/props/table2.prefab";
+        private const string PATH_CHAIR = "Assets/school/Prefabs/props/chair.prefab";
+        private const string PATH_LOCKER = "Assets/school/Prefabs/props/locker_1.prefab";
+        private const string PATH_MATERIAL_MAIN = "Assets/school/material/Materials/1.mat";
+        private const string PATH_MATERIAL_FLOOR = "Assets/school/material/Materials/floor_color.mat";
+        private const string PATH_TEXTURE_PALETTE = "Assets/school/material/1.png";
+
+        // -------------------------------------------------------------------------
+        // Estrutura de Configuração de Cada Sala
+        // -------------------------------------------------------------------------
+        private struct RoomDefinition
+        {
+            public string Name;
+            public float MinX;
+            public float MaxX;
+            public float MinZ;
+            public float MaxZ;
+            public bool IsLeftOfCorridor;
+            public float DoorZ;      // Posição Z da porta conectando ao corredor
+            public float SolidWallZ; // Posição Z do módulo de parede sólida no corredor
+            public float BoardZ;     // Posição Z da parede frontal com o quadro
+            public float BoardRotY;  // Rotação Y do quadro
+        }
+
+        // -------------------------------------------------------------------------
+        // Menus do Unity Editor
+        // -------------------------------------------------------------------------
+        [MenuItem("Tools/Generate School Map")]
+        public static void GenerateSchoolMap()
+        {
+            // 1. Garantir que os materiais do pacote estejam convertidos para URP
+            FixSchoolMaterialsInternal(silent: true);
+
+            // 2. Carregar os prefabs necessários
+            var prefabs = LoadPrefabs();
+            if (prefabs == null)
+            {
+                EditorUtility.DisplayDialog("Erro", "Não foi possível carregar todos os prefabs de 'Assets/school'. Verifique o Console.", "OK");
+                return;
+            }
+
+            // 3. Limpar cenário anterior se existir
+            ClearExistingEnvironment();
+
+            // 4. Criar nó raiz da hierarquia
+            GameObject root = new GameObject("-- ENVIRONMENT --");
+            Undo.RegisterCreatedObjectUndo(root, "Generate School Map");
+
+            // 5. Gerar o Corredor Principal
+            GenerateCorridor(root.transform, prefabs);
+
+            // 6. Definir e Gerar as 4 Salas
+            float corridorHalfX = TILE_X * 0.5f; // 2.21f
+            float roomWidth = TILE_X * 2f;       // 8.84f
+            float roomLength = TILE_Z * 2f;      // 10.68f
+
+            var rooms = new List<RoomDefinition>
+            {
+                // Sala 1 (Matemática) - Lado Esquerdo, metade Sul
+                new RoomDefinition
+                {
+                    Name = "Sala 1 - Matematica",
+                    MinX = -corridorHalfX - roomWidth, // -11.05
+                    MaxX = -corridorHalfX,              // -2.21
+                    MinZ = -roomLength,                 // -10.68
+                    MaxZ = 0f,
+                    IsLeftOfCorridor = true,
+                    DoorZ = -TILE_Z * 0.5f,             // -2.67 (perto do centro)
+                    SolidWallZ = -TILE_Z * 1.5f,        // -8.01
+                    BoardZ = -roomLength,               // Parede Sul (-10.68)
+                    BoardRotY = 0f                      // Voltado para o Norte (+Z)
+                },
+                // Sala 2 (Português) - Lado Direito, metade Sul
+                new RoomDefinition
+                {
+                    Name = "Sala 2 - Portugues",
+                    MinX = corridorHalfX,               // +2.21
+                    MaxX = corridorHalfX + roomWidth,  // +11.05
+                    MinZ = -roomLength,                 // -10.68
+                    MaxZ = 0f,
+                    IsLeftOfCorridor = false,
+                    DoorZ = -TILE_Z * 0.5f,             // -2.67
+                    SolidWallZ = -TILE_Z * 1.5f,        // -8.01
+                    BoardZ = -roomLength,               // Parede Sul (-10.68)
+                    BoardRotY = 0f                      // Voltado para o Norte (+Z)
+                },
+                // Sala 3 (História) - Lado Esquerdo, metade Norte
+                new RoomDefinition
+                {
+                    Name = "Sala 3 - Historia",
+                    MinX = -corridorHalfX - roomWidth, // -11.05
+                    MaxX = -corridorHalfX,              // -2.21
+                    MinZ = 0f,
+                    MaxZ = roomLength,                  // +10.68
+                    IsLeftOfCorridor = true,
+                    DoorZ = TILE_Z * 0.5f,              // +2.67 (perto do centro)
+                    SolidWallZ = TILE_Z * 1.5f,         // +8.01
+                    BoardZ = roomLength,                // Parede Norte (+10.68)
+                    BoardRotY = 180f                    // Voltado para o Sul (-Z)
+                },
+                // Sala 4 (Lógica) - Lado Direito, metade Norte
+                new RoomDefinition
+                {
+                    Name = "Sala 4 - Logica",
+                    MinX = corridorHalfX,               // +2.21
+                    MaxX = corridorHalfX + roomWidth,  // +11.05
+                    MinZ = 0f,
+                    MaxZ = roomLength,                  // +10.68
+                    IsLeftOfCorridor = false,
+                    DoorZ = TILE_Z * 0.5f,              // +2.67
+                    SolidWallZ = TILE_Z * 1.5f,         // +8.01
+                    BoardZ = roomLength,                // Parede Norte (+10.68)
+                    BoardRotY = 180f                    // Voltado para o Sul (-Z)
+                }
+            };
+
+            foreach (var roomDef in rooms)
+            {
+                GenerateRoom(root.transform, roomDef, prefabs);
+            }
+
+            // 7. Paredes divisórias centrais entre salas adjacentes (Z = 0)
+            GenerateDividingWalls(root.transform, prefabs, corridorHalfX, roomWidth);
+
+            // 8. Garantir Colliders e Materiais em toda a hierarquia gerada
+            EnsureColliders(root);
+            EnsureMaterials(root, prefabs.MainMaterial);
+
+            // 9. Marcar cena como modificada para salvar
+            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+
+            Debug.Log("<color=green>[SchoolMapGenerator] Mapa escolar gerado com sucesso!</color> Estrutura: 1 Corredor e 4 Salas com materiais URP aplicados.");
+            EditorUtility.DisplayDialog("School Map Generator", "Layout da escola gerado com sucesso!\n\n- 1 Corredor Central\n- 4 Salas Fechadas (Matemática, Português, História, Lógica)\n- Materiais URP calibrados (sem rosa!)\n- Colliders físicos ativados para First-Person", "OK");
+        }
+
+        [MenuItem("Tools/Clear School Map")]
+        public static void ClearSchoolMap()
+        {
+            if (ClearExistingEnvironment())
+            {
+                EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+                Debug.Log("[SchoolMapGenerator] Cenário '-- ENVIRONMENT --' removido com sucesso.");
+            }
+            else
+            {
+                Debug.LogWarning("[SchoolMapGenerator] Nenhum objeto '-- ENVIRONMENT --' encontrado na cena ativa.");
+            }
+        }
+
+        [MenuItem("Tools/Fix School Materials (URP)")]
+        public static void FixSchoolMaterialsMenu()
+        {
+            FixSchoolMaterialsInternal(silent: false);
+        }
+
+        // -------------------------------------------------------------------------
+        // Conversão e Correção Automática de Materiais para URP
+        // -------------------------------------------------------------------------
+        private static void FixSchoolMaterialsInternal(bool silent)
+        {
+            Shader targetShader = Shader.Find("Universal Render Pipeline/Lit");
+            if (targetShader == null)
+            {
+                targetShader = Shader.Find("Universal Render Pipeline/Simple Lit");
+            }
+            if (targetShader == null)
+            {
+                targetShader = Shader.Find("Standard");
+            }
+
+            if (targetShader == null)
+            {
+                Debug.LogWarning("[SchoolMapGenerator] Nenhum shader URP/Standard compatível encontrado.");
+                return;
+            }
+
+            Texture2D paletteTex = AssetDatabase.LoadAssetAtPath<Texture2D>(PATH_TEXTURE_PALETTE);
+
+            // 1. Atualizar 1.mat
+            Material mainMat = AssetDatabase.LoadAssetAtPath<Material>(PATH_MATERIAL_MAIN);
+            if (mainMat != null)
+            {
+                mainMat.shader = targetShader;
+                if (paletteTex != null)
+                {
+                    mainMat.SetTexture("_BaseMap", paletteTex);
+                    mainMat.SetTexture("_MainTex", paletteTex);
+                }
+                mainMat.SetColor("_BaseColor", Color.white);
+                mainMat.SetColor("_Color", Color.white);
+                EditorUtility.SetDirty(mainMat);
+            }
+
+            // 2. Atualizar floor_color.mat
+            Material floorMat = AssetDatabase.LoadAssetAtPath<Material>(PATH_MATERIAL_FLOOR);
+            if (floorMat != null)
+            {
+                floorMat.shader = targetShader;
+                Color floorColor = new Color(0.41f, 0.41f, 0.41f, 1f);
+                floorMat.SetColor("_BaseColor", floorColor);
+                floorMat.SetColor("_Color", floorColor);
+                EditorUtility.SetDirty(floorMat);
+            }
+
+            AssetDatabase.SaveAssets();
+
+            // 3. Se o cenário já estiver na cena, atualizar renderers com slots nulos/rosa
+            GameObject env = GameObject.Find("-- ENVIRONMENT --");
+            if (env != null && mainMat != null)
+            {
+                EnsureMaterials(env, mainMat);
+                EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+            }
+
+            if (!silent)
+            {
+                Debug.Log("[SchoolMapGenerator] Materiais do pacote escolar corrigidos com sucesso para URP.");
+                EditorUtility.DisplayDialog("Materiais URP", "Materiais da escola atualizados com sucesso para o shader Universal Render Pipeline (URP)!", "OK");
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // Carregamento Seguro de Assets
+        // -------------------------------------------------------------------------
+        private class PrefabBundle
+        {
+            public GameObject Floor;
+            public GameObject Wall;
+            public GameObject WallWindow;
+            public GameObject Door;
+            public GameObject Board;
+            public GameObject TeacherDesk;
+            public GameObject StudentDesk;
+            public GameObject Chair;
+            public GameObject Locker;
+            public Material MainMaterial;
+        }
+
+        private static PrefabBundle LoadPrefabs()
+        {
+            var bundle = new PrefabBundle
+            {
+                Floor = AssetDatabase.LoadAssetAtPath<GameObject>(PATH_FLOOR),
+                Wall = AssetDatabase.LoadAssetAtPath<GameObject>(PATH_WALL),
+                WallWindow = AssetDatabase.LoadAssetAtPath<GameObject>(PATH_WALL_WINDOW),
+                Door = AssetDatabase.LoadAssetAtPath<GameObject>(PATH_DOOR),
+                Board = AssetDatabase.LoadAssetAtPath<GameObject>(PATH_BOARD),
+                TeacherDesk = AssetDatabase.LoadAssetAtPath<GameObject>(PATH_TEACHER_DESK),
+                StudentDesk = AssetDatabase.LoadAssetAtPath<GameObject>(PATH_STUDENT_DESK),
+                Chair = AssetDatabase.LoadAssetAtPath<GameObject>(PATH_CHAIR),
+                Locker = AssetDatabase.LoadAssetAtPath<GameObject>(PATH_LOCKER),
+                MainMaterial = AssetDatabase.LoadAssetAtPath<Material>(PATH_MATERIAL_MAIN)
+            };
+
+            bool missing = false;
+            if (bundle.Floor == null) { Debug.LogError($"[SchoolMapGenerator] Prefab não encontrado: {PATH_FLOOR}"); missing = true; }
+            if (bundle.Wall == null) { Debug.LogError($"[SchoolMapGenerator] Prefab não encontrado: {PATH_WALL}"); missing = true; }
+            if (bundle.WallWindow == null) { Debug.LogError($"[SchoolMapGenerator] Prefab não encontrado: {PATH_WALL_WINDOW}"); missing = true; }
+            if (bundle.Door == null) { Debug.LogError($"[SchoolMapGenerator] Prefab não encontrado: {PATH_DOOR}"); missing = true; }
+            if (bundle.Board == null) { Debug.LogError($"[SchoolMapGenerator] Prefab não encontrado: {PATH_BOARD}"); missing = true; }
+            if (bundle.TeacherDesk == null) { Debug.LogError($"[SchoolMapGenerator] Prefab não encontrado: {PATH_TEACHER_DESK}"); missing = true; }
+            if (bundle.StudentDesk == null) { Debug.LogError($"[SchoolMapGenerator] Prefab não encontrado: {PATH_STUDENT_DESK}"); missing = true; }
+            if (bundle.Chair == null) { Debug.LogError($"[SchoolMapGenerator] Prefab não encontrado: {PATH_CHAIR}"); missing = true; }
+            if (bundle.Locker == null) { Debug.LogError($"[SchoolMapGenerator] Prefab não encontrado: {PATH_LOCKER}"); missing = true; }
+
+            return missing ? null : bundle;
+        }
+
+        private static bool ClearExistingEnvironment()
+        {
+            GameObject existing = GameObject.Find("-- ENVIRONMENT --");
+            if (existing != null)
+            {
+                Undo.DestroyObjectImmediate(existing);
+                return true;
+            }
+            return false;
+        }
+
+        // -------------------------------------------------------------------------
+        // Geração do Corredor Central
+        // -------------------------------------------------------------------------
+        private static void GenerateCorridor(Transform root, PrefabBundle prefabs)
+        {
+            GameObject corridorNode = CreateChild(root, "Corredor");
+            Transform floorsGroup = CreateChild(corridorNode.transform, "Floors").transform;
+            Transform ceilingsGroup = CreateChild(corridorNode.transform, "Ceilings").transform;
+            Transform wallsGroup = CreateChild(corridorNode.transform, "Walls").transform;
+            Transform propsGroup = CreateChild(corridorNode.transform, "Corridor_Lockers").transform;
+
+            // O corredor possui 4 módulos de comprimento ao longo de Z (índices -1.5, -0.5, +0.5, +1.5)
+            float[] zOffsets = { -1.5f * TILE_Z, -0.5f * TILE_Z, 0.5f * TILE_Z, 1.5f * TILE_Z };
+
+            foreach (float z in zOffsets)
+            {
+                // Piso do corredor
+                Spawn(prefabs.Floor, new Vector3(0f, 0f, z), Quaternion.identity, floorsGroup);
+
+                // Teto do corredor (floor invertido a Y = 4.4m)
+                Spawn(prefabs.Floor, new Vector3(0f, WALL_HEIGHT, z), Quaternion.Euler(180f, 0f, 0f), ceilingsGroup);
+            }
+
+            // Paredes das pontas do corredor (Norte e Sul)
+            // Sul: Z = -2 * TILE_Z (-10.68)
+            Vector3 wallScaleX = new Vector3(1f, 1f, TILE_X / DEFAULT_WALL_LENGTH);
+            Spawn(prefabs.Wall, new Vector3(0f, 0f, -2f * TILE_Z), Quaternion.Euler(0f, 90f, 0f), wallsGroup, wallScaleX);
+
+            // Norte: Z = +2 * TILE_Z (+10.68)
+            Spawn(prefabs.Wall, new Vector3(0f, 0f, 2f * TILE_Z), Quaternion.Euler(0f, 90f, 0f), wallsGroup, wallScaleX);
+
+            // Armários escolares nas seções sólidas do corredor (longe das portas)
+            float corridorWallLeftX = -TILE_X * 0.5f + 0.35f;
+            float corridorWallRightX = TILE_X * 0.5f - 0.35f;
+            float[] lockerZPoints = { -9.2f, -8.5f, -7.8f, -7.1f, 7.1f, 7.8f, 8.5f, 9.2f };
+
+            foreach (float lz in lockerZPoints)
+            {
+                // Armários do lado esquerdo (voltados para o centro do corredor, +X)
+                Spawn(prefabs.Locker, new Vector3(corridorWallLeftX, 0f, lz), Quaternion.Euler(0f, 90f, 0f), propsGroup);
+
+                // Armários do lado direito (voltados para o centro do corredor, -X)
+                Spawn(prefabs.Locker, new Vector3(corridorWallRightX, 0f, lz), Quaternion.Euler(0f, -90f, 0f), propsGroup);
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // Geração de Cada Sala de Aula
+        // -------------------------------------------------------------------------
+        private static void GenerateRoom(Transform root, RoomDefinition def, PrefabBundle prefabs)
+        {
+            GameObject roomNode = CreateChild(root, def.Name);
+            Transform floorsGroup = CreateChild(roomNode.transform, "Floors").transform;
+            Transform ceilingsGroup = CreateChild(roomNode.transform, "Ceilings").transform;
+            Transform wallsGroup = CreateChild(roomNode.transform, "Walls").transform;
+            Transform doorsGroup = CreateChild(roomNode.transform, "Doors").transform;
+            Transform interactiveGroup = CreateChild(roomNode.transform, "Interactive_Board").transform;
+            Transform furnitureGroup = CreateChild(roomNode.transform, "Furniture").transform;
+
+            // 1. Pisos e Tetos (Grade 2x2 = 4 blocos)
+            float[] xCols = { def.MinX + 0.5f * TILE_X, def.MinX + 1.5f * TILE_X };
+            float[] zRows = { def.MinZ + 0.5f * TILE_Z, def.MinZ + 1.5f * TILE_Z };
+
+            foreach (float x in xCols)
+            {
+                foreach (float z in zRows)
+                {
+                    // Piso
+                    Spawn(prefabs.Floor, new Vector3(x, 0f, z), Quaternion.identity, floorsGroup);
+
+                    // Teto (floor invertido a Y = 4.4m)
+                    Spawn(prefabs.Floor, new Vector3(x, WALL_HEIGHT, z), Quaternion.Euler(180f, 0f, 0f), ceilingsGroup);
+                }
+            }
+
+            // 2. Paredes Exteriores (Janelas)
+            float outerX = def.IsLeftOfCorridor ? def.MinX : def.MaxX;
+            float outerRotY = def.IsLeftOfCorridor ? 180f : 0f;
+
+            foreach (float z in zRows)
+            {
+                Spawn(prefabs.WallWindow, new Vector3(outerX, 0f, z), Quaternion.Euler(0f, outerRotY, 0f), wallsGroup);
+            }
+
+            // 3. Paredes Frontal e Traseira da Sala (correm ao longo de X)
+            Vector3 wallScaleX = new Vector3(1f, 1f, TILE_X / DEFAULT_WALL_LENGTH);
+
+            // Parede Sul da sala
+            foreach (float x in xCols)
+            {
+                Spawn(prefabs.Wall, new Vector3(x, 0f, def.MinZ), Quaternion.Euler(0f, 90f, 0f), wallsGroup, wallScaleX);
+            }
+
+            // Parede Norte da sala
+            foreach (float x in xCols)
+            {
+                Spawn(prefabs.Wall, new Vector3(x, 0f, def.MaxZ), Quaternion.Euler(0f, 90f, 0f), wallsGroup, wallScaleX);
+            }
+
+            // 4. Parede Conectando ao Corredor
+            float corridorWallX = def.IsLeftOfCorridor ? def.MaxX : def.MinX;
+            float corridorWallRotY = def.IsLeftOfCorridor ? 180f : 0f;
+
+            // a) Seção sólida de parede
+            Spawn(prefabs.Wall, new Vector3(corridorWallX, 0f, def.SolidWallZ), Quaternion.Euler(0f, corridorWallRotY, 0f), wallsGroup);
+
+            // b) Seção de Porta com vãos laterais e verga
+            SpawnDoorway(doorsGroup, wallsGroup, prefabs, corridorWallX, def.DoorZ, def.IsLeftOfCorridor);
+
+            // 5. Quadro Interativo (Board) na Parede Frontal
+            float roomCenterX = (def.MinX + def.MaxX) * 0.5f;
+            float boardOffsetZ = def.BoardRotY == 0f ? 0.15f : -0.15f;
+            Vector3 boardPos = new Vector3(roomCenterX, 1.6f, def.BoardZ + boardOffsetZ);
+            GameObject boardObj = Spawn(prefabs.Board, boardPos, Quaternion.Euler(0f, def.BoardRotY, 0f), interactiveGroup);
+            boardObj.name = "Interactive_Board";
+
+            // 6. Mobília Básica (Mesa do professor e carteiras dos alunos mantendo o centro livre)
+            SpawnClassroomFurniture(furnitureGroup, prefabs, def);
+        }
+
+        // -------------------------------------------------------------------------
+        // Construção do Vão da Porta com Batente e Passagem Desimpedida
+        // -------------------------------------------------------------------------
+        private static void SpawnDoorway(Transform doorsGroup, Transform wallsGroup, PrefabBundle prefabs, float wallX, float doorZ, bool isLeftOfCorridor)
+        {
+            // Instanciar a porta com batente
+            float doorRotY = isLeftOfCorridor ? 90f : -90f;
+            GameObject doorInstance = Spawn(prefabs.Door, new Vector3(wallX, 0f, doorZ), Quaternion.Euler(0f, doorRotY, 0f), doorsGroup);
+            doorInstance.name = "School_Door";
+
+            // Configurar folhas da porta como triggers para passagem suave em primeira pessoa
+            ConfigureDoorPassage(doorInstance);
+
+            // Paredes laterais para preencher o módulo de 5.34m (o vão da porta é ~2.56m)
+            float remainingSpan = (TILE_Z - DOOR_WIDTH) * 0.5f; // ~1.39m
+            Vector3 sideScale = new Vector3(1f, 1f, remainingSpan / DEFAULT_WALL_LENGTH);
+
+            // Parede lateral 1 (ao Sul da porta)
+            float side1Z = doorZ - (DOOR_WIDTH * 0.5f + remainingSpan * 0.5f);
+            Spawn(prefabs.Wall, new Vector3(wallX, 0f, side1Z), Quaternion.identity, wallsGroup, sideScale);
+
+            // Parede lateral 2 (ao Norte da porta)
+            float side2Z = doorZ + (DOOR_WIDTH * 0.5f + remainingSpan * 0.5f);
+            Spawn(prefabs.Wall, new Vector3(wallX, 0f, side2Z), Quaternion.identity, wallsGroup, sideScale);
+
+            // Verga da parede acima da porta (de Y=2.39m até Y=4.4m, altura ~2.0m)
+            float lintelHeight = WALL_HEIGHT - DOOR_HEIGHT;
+            Vector3 lintelScale = new Vector3(1f, lintelHeight / WALL_HEIGHT, DOOR_WIDTH / DEFAULT_WALL_LENGTH);
+            Spawn(prefabs.Wall, new Vector3(wallX, DOOR_HEIGHT, doorZ), Quaternion.identity, wallsGroup, lintelScale);
+        }
+
+        private static void ConfigureDoorPassage(GameObject doorInstance)
+        {
+            // Assegura que o batente tenha colisão, mas as folhas da porta não bloqueiem o jogador
+            Transform leaf1 = doorInstance.transform.Find("Cube_10");
+            Transform leaf2 = doorInstance.transform.Find("Cube_14");
+
+            if (leaf1 != null)
+            {
+                Collider c = leaf1.GetComponent<Collider>();
+                if (c != null) c.isTrigger = true;
+                leaf1.localRotation = Quaternion.Euler(0f, 75f, 0f);
+            }
+
+            if (leaf2 != null)
+            {
+                Collider c = leaf2.GetComponent<Collider>();
+                if (c != null) c.isTrigger = true;
+                leaf2.localRotation = Quaternion.Euler(0f, -75f, 0f);
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // Paredes Divisórias Centrais (Z = 0)
+        // -------------------------------------------------------------------------
+        private static void GenerateDividingWalls(Transform root, PrefabBundle prefabs, float corridorHalfX, float roomWidth)
+        {
+            Transform rootTransform = root;
+            Vector3 wallScaleX = new Vector3(1f, 1f, TILE_X / DEFAULT_WALL_LENGTH);
+
+            // Divisória entre Sala 1 e Sala 3 (X de -11.05 a -2.21)
+            float[] leftDivCols = { -corridorHalfX - 1.5f * TILE_X, -corridorHalfX - 0.5f * TILE_X };
+            foreach (float x in leftDivCols)
+            {
+                Spawn(prefabs.Wall, new Vector3(x, 0f, 0f), Quaternion.Euler(0f, 90f, 0f), rootTransform, wallScaleX);
+            }
+
+            // Divisória entre Sala 2 e Sala 4 (X de +2.21 a +11.05)
+            float[] rightDivCols = { corridorHalfX + 0.5f * TILE_X, corridorHalfX + 1.5f * TILE_X };
+            foreach (float x in rightDivCols)
+            {
+                Spawn(prefabs.Wall, new Vector3(x, 0f, 0f), Quaternion.Euler(0f, 90f, 0f), rootTransform, wallScaleX);
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // Mobília Básica com Espaço Central Amplo
+        // -------------------------------------------------------------------------
+        private static void SpawnClassroomFurniture(Transform furnitureGroup, PrefabBundle prefabs, RoomDefinition def)
+        {
+            float roomCenterX = (def.MinX + def.MaxX) * 0.5f;
+            float teacherSideX = def.IsLeftOfCorridor ? (roomCenterX - 2.4f) : (roomCenterX + 2.4f);
+
+            // 1. Mesa e Cadeira do Professor
+            float teacherZ = def.BoardRotY == 0f ? (def.BoardZ + 2.2f) : (def.BoardZ - 2.2f);
+            float teacherRotY = def.BoardRotY == 0f ? 180f : 0f;
+
+            Spawn(prefabs.TeacherDesk, new Vector3(teacherSideX, 0f, teacherZ), Quaternion.Euler(0f, teacherRotY, 0f), furnitureGroup);
+
+            float chairOffsetZ = def.BoardRotY == 0f ? -0.8f : 0.8f;
+            Spawn(prefabs.Chair, new Vector3(teacherSideX, 0f, teacherZ + chairOffsetZ), Quaternion.Euler(0f, teacherRotY, 0f), furnitureGroup);
+
+            // 2. Carteiras dos Alunos dispostas nas laterais (centro com ~3.5m livre)
+            float leftColumnX = def.MinX + 1.8f;
+            float rightColumnX = def.MaxX - 1.8f;
+
+            float roomCenterZ = (def.MinZ + def.MaxZ) * 0.5f;
+            float[] deskZOffsets = { roomCenterZ - 1.8f, roomCenterZ + 1.8f };
+            float deskRotY = def.BoardRotY == 0f ? 0f : 180f;
+
+            foreach (float z in deskZOffsets)
+            {
+                Spawn(prefabs.StudentDesk, new Vector3(leftColumnX, 0f, z), Quaternion.Euler(0f, deskRotY, 0f), furnitureGroup);
+                Spawn(prefabs.StudentDesk, new Vector3(rightColumnX, 0f, z), Quaternion.Euler(0f, deskRotY, 0f), furnitureGroup);
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // Garantia de MeshCollider Físico em Todos os Componentes
+        // -------------------------------------------------------------------------
+        private static void EnsureColliders(GameObject root)
+        {
+            MeshFilter[] meshFilters = root.GetComponentsInChildren<MeshFilter>(true);
+            foreach (var mf in meshFilters)
+            {
+                if (mf.sharedMesh == null) continue;
+
+                Collider col = mf.GetComponent<Collider>();
+                if (col == null)
+                {
+                    MeshCollider mc = Undo.AddComponent<MeshCollider>(mf.gameObject);
+                    mc.sharedMesh = mf.sharedMesh;
+                }
+                else
+                {
+                    col.enabled = true;
+                    if (col is MeshCollider mc && mc.sharedMesh == null)
+                    {
+                        mc.sharedMesh = mf.sharedMesh;
+                    }
+                }
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // Garantia de Materiais Válidos (Evita slots nulos ou rosa)
+        // -------------------------------------------------------------------------
+        private static void EnsureMaterials(GameObject root, Material fallbackMaterial)
+        {
+            if (fallbackMaterial == null) return;
+
+            MeshRenderer[] renderers = root.GetComponentsInChildren<MeshRenderer>(true);
+            foreach (var mr in renderers)
+            {
+                Material[] mats = mr.sharedMaterials;
+                bool changed = false;
+
+                for (int i = 0; i < mats.Length; i++)
+                {
+                    if (mats[i] == null || mats[i].shader == null || mats[i].shader.name.Contains("Error") || mats[i].shader.name == "Standard")
+                    {
+                        mats[i] = fallbackMaterial;
+                        changed = true;
+                    }
+                }
+
+                if (changed)
+                {
+                    mr.sharedMaterials = mats;
+                    EditorUtility.SetDirty(mr);
+                }
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // Utilitários de Instanciação e Hierarquia
+        // -------------------------------------------------------------------------
+        private static GameObject CreateChild(Transform parent, string name)
+        {
+            GameObject child = new GameObject(name);
+            child.transform.SetParent(parent, false);
+            Undo.RegisterCreatedObjectUndo(child, "Generate School Map");
+            return child;
+        }
+
+        private static GameObject Spawn(GameObject prefab, Vector3 position, Quaternion rotation, Transform parent, Vector3? scale = null)
+        {
+            GameObject instance;
+            if (PrefabUtility.IsPartOfPrefabAsset(prefab))
+            {
+                instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
+            }
+            else
+            {
+                instance = Object.Instantiate(prefab, parent);
+            }
+
+            instance.transform.position = position;
+            instance.transform.rotation = rotation;
+
+            if (scale.HasValue)
+            {
+                instance.transform.localScale = scale.Value;
+            }
+
+            Undo.RegisterCreatedObjectUndo(instance, "Generate School Map");
+            return instance;
+        }
+    }
+}
