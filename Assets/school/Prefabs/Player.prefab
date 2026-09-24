@@ -75,6 +75,17 @@ MonoBehaviour:
   sprintSpeed: 6.5
   jumpHeight: 1.1
   gravity: -15
+  acceleration: 14
+  deceleration: 18
+  enableHeadBobbing: 1
+  walkBobFrequency: 10
+  walkBobAmount: 0.035
+  sprintBobFrequency: 14
+  sprintBobAmount: 0.065
+  enableDynamicFOV: 1
+  baseFOV: 65
+  sprintFOV: 72
+  fovTransitionSpeed: 8
   playerCamera: {fileID: 7699713677857431310}
   mouseSensitivity: 1.5
   minPitch: -85
