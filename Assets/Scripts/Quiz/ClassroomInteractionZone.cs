@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using EducationalGame.Player;
+using EducationalGame.School;
 
 namespace EducationalGame.Quiz
 {
@@ -97,6 +98,16 @@ namespace EducationalGame.Quiz
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null && keyboard.eKey.wasPressedThisFrame)
             {
+                ExamineController examine = ExamineController.Instance;
+                if (examine != null)
+                {
+                    examine.RefreshAim();
+                    if (examine.IsPanelOpen || examine.IsAimingAtClue)
+                    {
+                        return;
+                    }
+                }
+
                 var mgr = GetOrCreateQuizManager();
                 if (mgr != null && !mgr.IsQuizOpen)
                 {

@@ -4,9 +4,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
-using UnityEngine.UI;
 using EducationalGame.Quiz;
-using EducationalGame.School;
 
 namespace EducationalGame.Editor
 {
@@ -40,10 +38,9 @@ namespace EducationalGame.Editor
         private static readonly Vector3 PIVOT_WALL_DOORWAY = new Vector3(0f, 0f, -0.10978f);  // wall4.fbx
         private static readonly Vector3 PIVOT_WALL_WINDOW = new Vector3(0f, 0f, -0.05176f);   // wall001.fbx
 
-        // Dimensões do Corredor Central: 2 módulos em X (~8.84m) x 9 módulos em Z (~48.02m)
+        // Dimensões do Corredor Central: 2 módulos em X (~8.84m) x 6 módulos em Z (~32.02m)
         private const int CORRIDOR_TILES_X = 2;
-        private const int CORRIDOR_TILES_Z = 9;
-        private const float SITE_MARGIN = 8f;
+        private const int CORRIDOR_TILES_Z = 6;
 
         // Dimensões de Cada Sala de Aula: 3 módulos em X (~13.26m) x 3 módulos em Z (~16.01m)
         private const int ROOM_TILES_X = 3;
@@ -103,11 +100,6 @@ namespace EducationalGame.Editor
             public float BoardZ;         // Posição Z da parede frontal com o quadro
             public float BoardRotY;      // Rotação Y do quadro
             public ClassroomSubject Subject; // Disciplina do minigame/questionário interativo
-            public int Number;
-            public string DisplayName;
-            public RoomRole Role;
-            public RoomAccessState InitialState;
-            public bool HasMission;
         }
 
         // -------------------------------------------------------------------------
@@ -144,14 +136,10 @@ namespace EducationalGame.Editor
 
             var rooms = new List<RoomDefinition>
             {
+                // Sala 1 (Matemática) - Lado Esquerdo, metade Sul
                 new RoomDefinition
                 {
                     Name = "Sala 1 - Matematica",
-                    DisplayName = "Sala 01 — Matemática",
-                    Number = 1,
-                    Role = RoomRole.Mission,
-                    InitialState = RoomAccessState.Available,
-                    HasMission = true,
                     MinX = -corridorHalfX - roomWidth,
                     MaxX = -corridorHalfX,
                     MinZ = -roomLength,
@@ -163,14 +151,10 @@ namespace EducationalGame.Editor
                     BoardRotY = 0f,
                     Subject = ClassroomSubject.Matematica
                 },
+                // Sala 2 (Português) - Lado Direito, metade Sul
                 new RoomDefinition
                 {
                     Name = "Sala 2 - Portugues",
-                    DisplayName = "Sala 02 — Português",
-                    Number = 2,
-                    Role = RoomRole.Mission,
-                    InitialState = RoomAccessState.Locked,
-                    HasMission = true,
                     MinX = corridorHalfX,
                     MaxX = corridorHalfX + roomWidth,
                     MinZ = -roomLength,
@@ -182,14 +166,10 @@ namespace EducationalGame.Editor
                     BoardRotY = 0f,
                     Subject = ClassroomSubject.Portugues
                 },
+                // Sala 3 (História) - Lado Esquerdo, metade Norte
                 new RoomDefinition
                 {
                     Name = "Sala 3 - Historia",
-                    DisplayName = "Sala 03 — História",
-                    Number = 3,
-                    Role = RoomRole.Mission,
-                    InitialState = RoomAccessState.Locked,
-                    HasMission = true,
                     MinX = -corridorHalfX - roomWidth,
                     MaxX = -corridorHalfX,
                     MinZ = 0f,
@@ -201,14 +181,10 @@ namespace EducationalGame.Editor
                     BoardRotY = 180f,
                     Subject = ClassroomSubject.Historia
                 },
+                // Sala 4 (Lógica) - Lado Direito, metade Norte
                 new RoomDefinition
                 {
                     Name = "Sala 4 - Logica",
-                    DisplayName = "Sala 04 — Lógica",
-                    Number = 4,
-                    Role = RoomRole.Mission,
-                    InitialState = RoomAccessState.Locked,
-                    HasMission = true,
                     MinX = corridorHalfX,
                     MaxX = corridorHalfX + roomWidth,
                     MinZ = 0f,
@@ -219,42 +195,6 @@ namespace EducationalGame.Editor
                     BoardZ = roomLength,
                     BoardRotY = 180f,
                     Subject = ClassroomSubject.Logica
-                },
-                new RoomDefinition
-                {
-                    Name = "Sala 05 - Coordenacao",
-                    DisplayName = "Sala 05 — Coordenação",
-                    Number = 5,
-                    Role = RoomRole.Ambience,
-                    InitialState = RoomAccessState.Free,
-                    HasMission = false,
-                    MinX = -corridorHalfX - roomWidth,
-                    MaxX = -corridorHalfX,
-                    MinZ = roomLength,
-                    MaxZ = roomLength * 2f,
-                    IsLeftOfCorridor = true,
-                    DoorZ = TILE_Z * 3.5f,
-                    SolidWallZs = new float[] { TILE_Z * 4.5f, TILE_Z * 5.5f },
-                    BoardZ = roomLength * 2f,
-                    BoardRotY = 180f
-                },
-                new RoomDefinition
-                {
-                    Name = "Sala 06 - Laboratorio",
-                    DisplayName = "Sala 06 — Laboratório",
-                    Number = 6,
-                    Role = RoomRole.Ambience,
-                    InitialState = RoomAccessState.Free,
-                    HasMission = false,
-                    MinX = corridorHalfX,
-                    MaxX = corridorHalfX + roomWidth,
-                    MinZ = roomLength,
-                    MaxZ = roomLength * 2f,
-                    IsLeftOfCorridor = false,
-                    DoorZ = TILE_Z * 3.5f,
-                    SolidWallZs = new float[] { TILE_Z * 4.5f, TILE_Z * 5.5f },
-                    BoardZ = roomLength * 2f,
-                    BoardRotY = 180f
                 }
             };
 
@@ -263,13 +203,16 @@ namespace EducationalGame.Editor
                 GenerateRoom(root.transform, roomDef, prefabs);
             }
 
-            GenerateDividingWalls(root.transform, prefabs, corridorHalfX, 0f);
-            GenerateDividingWalls(root.transform, prefabs, corridorHalfX, roomLength);
+            // 7. Paredes divisórias centrais sólidas entre salas adjacentes (Z = 0)
+            GenerateDividingWalls(root.transform, prefabs, corridorHalfX);
 
+            // 8. Gerar o Hall de Entrada Principal & Recepção (Ala Sul)
             GenerateEntranceHall(root.transform, prefabs);
-            GenerateLibrary(root.transform, prefabs);
-            GenerateSite(root.transform, prefabs);
 
+            // 9. Gerar a Grande Biblioteca & Sala de Estudos (Ala Norte)
+            GenerateLibrary(root.transform, prefabs);
+
+            // 10. Garantir Colliders e Materiais em toda a hierarquia gerada
             EnsureColliders(root);
             EnsureMaterials(root, prefabs.MainMaterial);
 
@@ -279,8 +222,8 @@ namespace EducationalGame.Editor
             // 12. Marcar cena como modificada para salvar
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
 
-            Debug.Log("<color=green>[SchoolMapGenerator] Cenário da Etapa A gerado.</color> Corredor de 9 módulos, salas 05 e 06, biblioteca ao norte, terreno cercado e uma saída oficial.");
-            EditorUtility.DisplayDialog("School Map Generator", "Escola gerada com sucesso.\n\n- Corredor com 9 módulos\n- Salas 01 a 04 com os quizzes atuais\n- Salas 05 e 06 de ambientação\n- Biblioteca no fundo da escola\n- Terreno cercado e uma única saída ao sul", "OK");
+            Debug.Log("<color=green>[SchoolMapGenerator] Cenário atualizado com sucesso!</color> Ajustes escolares e plataformas de questionário das 4 salas aplicadas.");
+            EditorUtility.DisplayDialog("School Map Generator", "Escola gerada com sucesso!\n\n- 4 Salas de Aula equipadas com plataformas de minigame/quiz (acionamento com [E])\n- Banco de perguntas didáticas para Matemática, Português, História e Lógica\n- Mobiliário das salas e da biblioteca perfeitamente alinhado\n- Hall de Entrada e circulação integrados", "OK");
         }
 
         [MenuItem("Tools/Clear School Map")]
@@ -484,13 +427,9 @@ namespace EducationalGame.Editor
             Transform ceilingsGroup = CreateChild(corridorNode.transform, "Ceilings").transform;
             Transform propsGroup = CreateChild(corridorNode.transform, "Corridor_Props").transform;
 
-            // O corredor começa no hall (Z = -3 módulos) e segue 9 módulos para o norte.
+            // O corredor central possui 2 módulos de largura em X e 6 módulos de comprimento em Z
             float[] xOffsets = { -0.5f * TILE_X, 0.5f * TILE_X };
-            float[] zOffsets = new float[CORRIDOR_TILES_Z];
-            for (int i = 0; i < CORRIDOR_TILES_Z; i++)
-            {
-                zOffsets[i] = (-2.5f + i) * TILE_Z;
-            }
+            float[] zOffsets = { -2.5f * TILE_Z, -1.5f * TILE_Z, -0.5f * TILE_Z, 0.5f * TILE_Z, 1.5f * TILE_Z, 2.5f * TILE_Z };
 
             foreach (float x in xOffsets)
             {
@@ -519,7 +458,7 @@ namespace EducationalGame.Editor
             // Armários escolares ao longo das seções sólidas do corredor
             float lockerLeftX = -TILE_X + 0.35f;
             float lockerRightX = TILE_X - 0.35f;
-            float[] lockerZPoints = { -14.5f, -13.8f, -13.1f, -12.4f, -9.5f, -8.8f, -8.1f, -7.4f, 7.4f, 8.1f, 8.8f, 9.5f, 12.4f, 13.1f, 13.8f, 14.5f, 23.3f, 24.0f, 24.7f, 28.5f, 29.2f, 29.9f };
+            float[] lockerZPoints = { -14.5f, -13.8f, -13.1f, -12.4f, -9.5f, -8.8f, -8.1f, -7.4f, 7.4f, 8.1f, 8.8f, 9.5f, 12.4f, 13.1f, 13.8f, 14.5f };
 
             foreach (float lz in lockerZPoints)
             {
@@ -530,7 +469,6 @@ namespace EducationalGame.Editor
             // Extintores de Incêndio no Corredor Central
             Spawn(prefabs.FireExtinguisher, new Vector3(wallLeftX, 1.1f, -6.5f), Quaternion.Euler(0f, 90f, 0f), propsGroup);
             Spawn(prefabs.FireExtinguisher, new Vector3(wallRightX, 1.1f, 6.5f), Quaternion.Euler(0f, -90f, 0f), propsGroup);
-            Spawn(prefabs.FireExtinguisher, new Vector3(wallLeftX, 1.1f, 22.5f), Quaternion.Euler(0f, 90f, 0f), propsGroup);
 
             // Caixas de Som / Interfone no Corredor (no alto das paredes a Y = 3.6m voltadas para o corredor)
             if (prefabs.Speaker != null)
@@ -585,7 +523,7 @@ namespace EducationalGame.Editor
 
             foreach (float z in zRows)
             {
-                SpawnWall(prefabs.WallWindow, new Vector3(outerX, 0f, z), outerRot, PIVOT_WALL_WINDOW, wallsGroup, sealOpening: true);
+                SpawnWall(prefabs.WallWindow, new Vector3(outerX, 0f, z), outerRot, PIVOT_WALL_WINDOW, wallsGroup);
             }
 
             // 3. Paredes Frontal e Traseira da Sala (Paredes 100% SÓLIDAS sem janelas)
@@ -615,29 +553,7 @@ namespace EducationalGame.Editor
             }
 
             // Módulo de Porta no Corredor (wall4 com abertura precisa e porta a door1 integrada)
-            GameObject roomDoor = SpawnDoorway(doorsGroup, wallsGroup, prefabs, corridorWallX, def.DoorZ, corridorWallRot);
-
-            RoomMarker roomMarker = roomNode.AddComponent<RoomMarker>();
-            roomMarker.Configure(def.Number, def.DisplayName, def.Role, def.InitialState, def.HasMission, def.Subject);
-            Vector3 doorPoint = new Vector3(corridorWallX, 0f, def.DoorZ);
-            float corridorSide = def.IsLeftOfCorridor ? 0.8f : -0.8f;
-            RoomDoorLock doorLock = SpawnDoorLock(
-                roomNode.transform,
-                "Door_Lock_" + def.Number,
-                doorPoint,
-                new Vector3(0f, 1.6f, 0f),
-                new Vector3(0.45f, 3.2f, 2.1f),
-                new Vector3(corridorSide, 1.2f, 0f),
-                new Vector3(1.15f, 2.2f, 2.4f),
-                LockedMessageFor(def),
-                def.InitialState == RoomAccessState.Locked,
-                CollectDoorLeaves(roomDoor));
-            roomMarker.BindDoorLock(doorLock);
-            float signX = corridorWallX + (def.IsLeftOfCorridor ? 0.22f : -0.22f);
-            // O texto do canvas fica legível no sentido oposto ao forward.
-            // Esquerda: quem está no corredor olha para -X. Direita: olha para +X.
-            float signYaw = def.IsLeftOfCorridor ? -90f : 90f;
-            SpawnSign(roomNode.transform, def.DisplayName, new Vector3(signX, 2.65f, def.DoorZ), signYaw);
+            SpawnDoorway(doorsGroup, wallsGroup, prefabs, corridorWallX, def.DoorZ, corridorWallRot);
 
             // 5. Quadro Interativo Centralizado Verticalmente e Alargado na Parede Frontal
             float roomCenterX = (def.MinX + def.MaxX) * 0.5f;
@@ -689,7 +605,7 @@ namespace EducationalGame.Editor
                 SpawnWall(prefabs.WallSolid, new Vector3(westX, 0f, z), Quaternion.Euler(0f, 180f, 0f), PIVOT_WALL_SOLID, wallsGroup);
 
                 // Parede Leste com amplas janelas para entrada de luz natural
-                SpawnWall(prefabs.WallWindow, new Vector3(eastX, 0f, z), Quaternion.identity, PIVOT_WALL_WINDOW, wallsGroup, sealOpening: true);
+                SpawnWall(prefabs.WallWindow, new Vector3(eastX, 0f, z), Quaternion.identity, PIVOT_WALL_WINDOW, wallsGroup);
             }
 
             // 3. Fachada Sul (Entrada Principal do Prédio Escolar em Z = -5 * TILE_Z)
@@ -698,13 +614,16 @@ namespace EducationalGame.Editor
             Quaternion facadeRot = Quaternion.Euler(0f, 90f, 0f);
 
             // Coluna 0 (Oeste): Janela ampla
-            SpawnWall(prefabs.WallWindow, new Vector3(xCols[0], 0f, southFacadeZ), facadeRot, PIVOT_WALL_WINDOW, wallsGroup, wallScaleX, true);
+            SpawnWall(prefabs.WallWindow, new Vector3(xCols[0], 0f, southFacadeZ), facadeRot, PIVOT_WALL_WINDOW, wallsGroup, wallScaleX);
 
-            SpawnOfficialExit(doorsGroup, wallsGroup, prefabs, xCols[1], southFacadeZ, facadeRot, wallScaleX);
+            // Coluna 1: Porta Dupla Principal 1 (Entrada da Escola)
+            SpawnDoorway(doorsGroup, wallsGroup, prefabs, xCols[1], southFacadeZ, facadeRot, wallScaleX);
 
-            SpawnWall(prefabs.WallWindow, new Vector3(xCols[2], 0f, southFacadeZ), facadeRot, PIVOT_WALL_WINDOW, wallsGroup, wallScaleX, true);
+            // Coluna 2: Porta Dupla Principal 2 (Entrada da Escola)
+            SpawnDoorway(doorsGroup, wallsGroup, prefabs, xCols[2], southFacadeZ, facadeRot, wallScaleX);
 
-            SpawnWall(prefabs.WallWindow, new Vector3(xCols[3], 0f, southFacadeZ), facadeRot, PIVOT_WALL_WINDOW, wallsGroup, wallScaleX, true);
+            // Coluna 3 (Leste): Janela ampla
+            SpawnWall(prefabs.WallWindow, new Vector3(xCols[3], 0f, southFacadeZ), facadeRot, PIVOT_WALL_WINDOW, wallsGroup, wallScaleX);
 
             // 4. Mobília e Cenografia da Recepção
             float deskX = -3.8f;
@@ -754,8 +673,6 @@ namespace EducationalGame.Editor
             // Ônibus Escolar Amarelo estacionado na frente da escola (visível pelas janelas e portas do hall)
             GameObject busObj = Spawn(prefabs.Bus, new Vector3(2.0f, 0f, streetZ), Quaternion.Euler(0f, 90f, 0f), exteriorGroup);
             busObj.name = "School_Bus_Exterior";
-
-            SpawnSign(hallNode.transform, "Recepção", new Vector3(0f, 2.65f, -3f * TILE_Z + 0.25f), 0f);
         }
 
         // -------------------------------------------------------------------------
@@ -772,7 +689,7 @@ namespace EducationalGame.Editor
             // A Biblioteca mede 4 módulos em X (17.69m) x 2 módulos em Z (10.67m)
             // Z de +3 * TILE_Z (+16.01m) até +5 * TILE_Z (+26.68m)
             float[] xCols = { -1.5f * TILE_X, -0.5f * TILE_X, 0.5f * TILE_X, 1.5f * TILE_X };
-            float[] zRows = { 6.5f * TILE_Z, 7.5f * TILE_Z };
+            float[] zRows = { 3.5f * TILE_Z, 4.5f * TILE_Z };
 
             // 1. Pisos e Tetos da Biblioteca
             foreach (float x in xCols)
@@ -798,90 +715,74 @@ namespace EducationalGame.Editor
             }
 
             // 3. Fachada Norte (Paredes de Vidro com Iluminação Natural em Z = +5 * TILE_Z)
-            float northFacadeZ = 8f * TILE_Z;
+            float northFacadeZ = 5f * TILE_Z;
             Vector3 wallScaleX = new Vector3(1f, 1f, TILE_X / TILE_Z);
             Quaternion facadeRot = Quaternion.Euler(0f, 90f, 0f);
 
             foreach (float x in xCols)
             {
-                SpawnWall(prefabs.WallWindow, new Vector3(x, 0f, northFacadeZ), facadeRot, PIVOT_WALL_WINDOW, wallsGroup, wallScaleX, true);
+                SpawnWall(prefabs.WallWindow, new Vector3(x, 0f, northFacadeZ), facadeRot, PIVOT_WALL_WINDOW, wallsGroup, wallScaleX);
             }
 
-            float zShift = 3f * TILE_Z;
-            float pcDeskX = eastX - 0.85f;
+            // 4. Mobília e Cenografia da Biblioteca
+            // Mesa de Atendimento da Bibliotecária: encostada na parede Leste com o mesmo sentido e alinhamento dos outros computadores
+            float pcDeskX = eastX - 0.85f; // ~7.99m (encostada na parede Leste)
             float libDeskX = pcDeskX;
-            float libDeskZ = 17.2f + zShift;
+            float libDeskZ = 17.2f;
             GameObject libDesk = Spawn(prefabs.TeacherDesk, new Vector3(libDeskX, 0f, libDeskZ), Quaternion.Euler(0f, 90f, 0f), propsGroup);
             libDesk.name = "Librarian_Desk";
 
+            // Computador, teclado e cadeira da bibliotecária virados para o interior, no mesmo sentido dos terminais de pesquisa
             Spawn(prefabs.Computer, new Vector3(libDeskX, 1.15f, libDeskZ), Quaternion.Euler(0f, -90f, 0f), propsGroup);
             Spawn(prefabs.Keyboard, new Vector3(libDeskX - 0.25f, 1.15f, libDeskZ), Quaternion.Euler(0f, -90f, 0f), propsGroup);
             Spawn(prefabs.TeacherChair, new Vector3(libDeskX - 0.75f, 0f, libDeskZ), Quaternion.Euler(0f, 90f, 0f), propsGroup);
 
-            Spawn(prefabs.BookcaseWithBooks, new Vector3(westX + 0.85f, 0f, 19.5f + zShift), Quaternion.Euler(0f, 90f, 0f), propsGroup);
-            Spawn(prefabs.BookcaseWithBooks, new Vector3(westX + 0.85f, 0f, 23.5f + zShift), Quaternion.Euler(0f, 90f, 0f), propsGroup);
-            Spawn(prefabs.BookcaseWithBooks, new Vector3(-4.2f, 0f, 20.0f + zShift), Quaternion.identity, propsGroup);
-            Spawn(prefabs.BookcaseWithBooks, new Vector3(-4.2f, 0f, 23.8f + zShift), Quaternion.identity, propsGroup);
-            Spawn(prefabs.BookcaseWithBooks, new Vector3(-1.2f, 0f, 20.0f + zShift), Quaternion.identity, propsGroup);
-            Spawn(prefabs.BookcaseWithBooks, new Vector3(-1.2f, 0f, 23.8f + zShift), Quaternion.identity, propsGroup);
+            // Corredores de Estantes Recheadas de Livros (rack1) - estante vazia removida conforme solicitado
+            // Estantes da parede Oeste
+            Spawn(prefabs.BookcaseWithBooks, new Vector3(westX + 0.85f, 0f, 19.5f), Quaternion.Euler(0f, 90f, 0f), propsGroup);
+            Spawn(prefabs.BookcaseWithBooks, new Vector3(westX + 0.85f, 0f, 23.5f), Quaternion.Euler(0f, 90f, 0f), propsGroup);
 
-            GameObject studyTable = Spawn(prefabs.TableStudy, new Vector3(4.5f, 0f, 23.2f + zShift), Quaternion.identity, propsGroup);
+            // Corredor Central de Leitura A (estantes duplas paralelas)
+            Spawn(prefabs.BookcaseWithBooks, new Vector3(-4.2f, 0f, 20.0f), Quaternion.identity, propsGroup);
+            Spawn(prefabs.BookcaseWithBooks, new Vector3(-4.2f, 0f, 23.8f), Quaternion.identity, propsGroup);
+
+            // Corredor Central de Leitura B
+            Spawn(prefabs.BookcaseWithBooks, new Vector3(-1.2f, 0f, 20.0f), Quaternion.identity, propsGroup);
+            Spawn(prefabs.BookcaseWithBooks, new Vector3(-1.2f, 0f, 23.8f), Quaternion.identity, propsGroup);
+
+            // Mesa Coletiva Ampla de Estudos em Grupo (table2 com 4 bancos integrados)
+            GameObject studyTable = Spawn(prefabs.TableStudy, new Vector3(4.5f, 0f, 23.2f), Quaternion.identity, propsGroup);
             studyTable.name = "Group_Study_Table";
 
-            GameObject pc1 = Spawn(prefabs.TeacherDesk, new Vector3(pcDeskX, 0f, 20.5f + zShift), Quaternion.Euler(0f, 90f, 0f), propsGroup);
+            // Terminais de Consulta Rápida ao Acervo na parede Leste: UTILIZANDO O MODELO table3 (mesmas do professor)
+            // (Utiliza pcDeskX já configurado junto à parede Leste)
+
+            // Terminal 1 (table3 com PC completo)
+            GameObject pc1 = Spawn(prefabs.TeacherDesk, new Vector3(pcDeskX, 0f, 20.5f), Quaternion.Euler(0f, 90f, 0f), propsGroup);
             pc1.name = "Search_Terminal_1";
-            Spawn(prefabs.Computer, new Vector3(pcDeskX, 1.15f, 20.5f + zShift), Quaternion.Euler(0f, -90f, 0f), propsGroup);
-            Spawn(prefabs.Keyboard, new Vector3(pcDeskX - 0.25f, 1.15f, 20.5f + zShift), Quaternion.Euler(0f, -90f, 0f), propsGroup);
-            Spawn(prefabs.TeacherChair, new Vector3(pcDeskX - 0.75f, 0f, 20.5f + zShift), Quaternion.Euler(0f, 90f, 0f), propsGroup);
+            Spawn(prefabs.Computer, new Vector3(pcDeskX, 1.15f, 20.5f), Quaternion.Euler(0f, -90f, 0f), propsGroup);
+            Spawn(prefabs.Keyboard, new Vector3(pcDeskX - 0.25f, 1.15f, 20.5f), Quaternion.Euler(0f, -90f, 0f), propsGroup);
+            Spawn(prefabs.TeacherChair, new Vector3(pcDeskX - 0.75f, 0f, 20.5f), Quaternion.Euler(0f, 90f, 0f), propsGroup);
 
-            GameObject pc2 = Spawn(prefabs.TeacherDesk, new Vector3(pcDeskX, 0f, 24.0f + zShift), Quaternion.Euler(0f, 90f, 0f), propsGroup);
+            // Terminal 2 (table3 com PC completo)
+            GameObject pc2 = Spawn(prefabs.TeacherDesk, new Vector3(pcDeskX, 0f, 24.0f), Quaternion.Euler(0f, 90f, 0f), propsGroup);
             pc2.name = "Search_Terminal_2";
-            Spawn(prefabs.Computer, new Vector3(pcDeskX, 1.15f, 24.0f + zShift), Quaternion.Euler(0f, -90f, 0f), propsGroup);
-            Spawn(prefabs.Keyboard, new Vector3(pcDeskX - 0.25f, 1.15f, 24.0f + zShift), Quaternion.Euler(0f, -90f, 0f), propsGroup);
-            Spawn(prefabs.TeacherChair, new Vector3(pcDeskX - 0.75f, 0f, 24.0f + zShift), Quaternion.Euler(0f, 90f, 0f), propsGroup);
+            Spawn(prefabs.Computer, new Vector3(pcDeskX, 1.15f, 24.0f), Quaternion.Euler(0f, -90f, 0f), propsGroup);
+            Spawn(prefabs.Keyboard, new Vector3(pcDeskX - 0.25f, 1.15f, 24.0f), Quaternion.Euler(0f, -90f, 0f), propsGroup);
+            Spawn(prefabs.TeacherChair, new Vector3(pcDeskX - 0.75f, 0f, 24.0f), Quaternion.Euler(0f, 90f, 0f), propsGroup);
 
-            GameObject showcaseRare = Spawn(prefabs.Showcase, new Vector3(-1.2f, 0f, 22.4f + zShift), Quaternion.Euler(0f, 0f, 0f), propsGroup);
+            // Vitrine de Obras Raras e Manuscritos Históricos
+            GameObject showcaseRare = Spawn(prefabs.Showcase, new Vector3(-1.2f, 0f, 17.2f), Quaternion.Euler(0f, 0f, 0f), propsGroup);
             showcaseRare.name = "Showcase_Rare_Manuscripts";
 
-            Spawn(prefabs.FireExtinguisher, new Vector3(westX + 0.08f, 1.1f, 17.2f + zShift), Quaternion.Euler(0f, 90f, 0f), propsGroup);
-
-            RoomMarker libraryMarker = libNode.AddComponent<RoomMarker>();
-            libraryMarker.Configure(0, "Biblioteca", RoomRole.FinalChallenge, RoomAccessState.Locked, false, default);
-
-            Transform libraryDoors = CreateChild(libNode.transform, "Doors").transform;
-            Transform libraryWalls = wallsGroup;
-            Vector3 facadeScale = new Vector3(1f, 1f, TILE_X / TILE_Z);
-            Quaternion libraryDoorRot = Quaternion.Euler(0f, 90f, 0f);
-            float libraryZ = 6f * TILE_Z;
-            GameObject libraryDoorLeft = SpawnDoorway(libraryDoors, libraryWalls, prefabs, -0.5f * TILE_X, libraryZ, libraryDoorRot, facadeScale);
-            GameObject libraryDoorRight = SpawnDoorway(libraryDoors, libraryWalls, prefabs, 0.5f * TILE_X, libraryZ, libraryDoorRot, facadeScale);
-
-            RoomDoorLock libraryLock = SpawnDoorLock(
-                libNode.transform,
-                "Door_Lock_Biblioteca",
-                new Vector3(0f, 0f, libraryZ),
-                new Vector3(0f, 1.6f, 0f),
-                new Vector3(TILE_X * 2f + 0.4f, 3.2f, 0.45f),
-                new Vector3(0f, 1.2f, -0.85f),
-                new Vector3(TILE_X * 2f, 2.2f, 1.3f),
-                "Biblioteca bloqueada — conclua Lógica primeiro",
-                true,
-                CombineLeaves(libraryDoorLeft, libraryDoorRight));
-            libraryMarker.BindDoorLock(libraryLock);
-
-            GameObject finalDesk = Spawn(prefabs.TeacherDesk, new Vector3(0f, 0f, libraryZ + 3.4f), Quaternion.Euler(0f, 180f, 0f), propsGroup);
-            finalDesk.name = "Final_Challenge_Desk";
-            GameObject finalTerminal = Spawn(prefabs.Computer, new Vector3(0f, 1.15f, libraryZ + 3.2f), Quaternion.Euler(0f, 180f, 0f), propsGroup);
-            finalTerminal.name = "Final_Challenge_Terminal";
-            finalTerminal.AddComponent<LibraryFinalChallenge>();
-
-            SpawnSign(libNode.transform, "Biblioteca", new Vector3(0f, 2.65f, 6f * TILE_Z - 0.2f), 0f);
+            // Extintor de Incêndio da Biblioteca
+            Spawn(prefabs.FireExtinguisher, new Vector3(westX + 0.08f, 1.1f, 17.2f), Quaternion.Euler(0f, 90f, 0f), propsGroup);
         }
 
         // -------------------------------------------------------------------------
         // Construção do Módulo da Porta com Parede wall4 e Batente a door1
         // -------------------------------------------------------------------------
-        private static GameObject SpawnDoorway(Transform doorsGroup, Transform wallsGroup, PrefabBundle prefabs, float wallX, float doorZ, Quaternion wallRot, Vector3? scale = null)
+        private static void SpawnDoorway(Transform doorsGroup, Transform wallsGroup, PrefabBundle prefabs, float wallX, float doorZ, Quaternion wallRot, Vector3? scale = null)
         {
             Vector3 targetCenter = new Vector3(wallX, 0f, doorZ);
 
@@ -908,60 +809,38 @@ namespace EducationalGame.Editor
 
             // 3. Configurar folhas da porta como triggers para passagem suave em primeira pessoa
             ConfigureDoorPassage(doorInstance);
-            return doorInstance;
         }
 
         private static void ConfigureDoorPassage(GameObject doorInstance)
         {
             Transform leaf1 = doorInstance.transform.Find("Cube_10");
             Transform leaf2 = doorInstance.transform.Find("Cube_14");
-            PrepareDoorLeaf(leaf1);
-            PrepareDoorLeaf(leaf2);
-        }
 
-        private static void PrepareDoorLeaf(Transform leaf)
-        {
-            if (leaf == null) return;
-
-            GameObjectUtility.SetStaticEditorFlags(leaf.gameObject, 0);
-            leaf.gameObject.isStatic = false;
-
-            Collider collider = leaf.GetComponent<Collider>();
-            if (collider != null)
+            if (leaf1 != null)
             {
-                collider.isTrigger = true;
+                Collider c = leaf1.GetComponent<Collider>();
+                if (c != null) c.isTrigger = true;
+                leaf1.localRotation = Quaternion.Euler(0f, 75f, 0f);
             }
-        }
 
-        private static Transform[] CollectDoorLeaves(GameObject door)
-        {
-            if (door == null) return new Transform[0];
-            return new Transform[]
+            if (leaf2 != null)
             {
-                door.transform.Find("Cube_10"),
-                door.transform.Find("Cube_14")
-            };
-        }
-
-        private static Transform[] CombineLeaves(GameObject first, GameObject second)
-        {
-            Transform[] a = CollectDoorLeaves(first);
-            Transform[] b = CollectDoorLeaves(second);
-            Transform[] all = new Transform[a.Length + b.Length];
-            a.CopyTo(all, 0);
-            b.CopyTo(all, a.Length);
-            return all;
+                Collider c = leaf2.GetComponent<Collider>();
+                if (c != null) c.isTrigger = true;
+                leaf2.localRotation = Quaternion.Euler(0f, -75f, 0f);
+            }
         }
 
         // -------------------------------------------------------------------------
         // Paredes Divisórias Centrais 100% Sólidas entre Salas (Z = 0)
         // -------------------------------------------------------------------------
-        private static void GenerateDividingWalls(Transform root, PrefabBundle prefabs, float corridorHalfX, float z)
+        private static void GenerateDividingWalls(Transform root, PrefabBundle prefabs, float corridorHalfX)
         {
             Transform rootTransform = root;
             Vector3 wallScaleX = new Vector3(1f, 1f, TILE_X / TILE_Z);
             Quaternion wallRotX = Quaternion.Euler(0f, 90f, 0f);
 
+            // Divisória entre Sala 1 e Sala 3 (X de -17.68m a -4.42m = 3 módulos sólidos)
             float[] leftDivCols = {
                 -corridorHalfX - 2.5f * TILE_X,
                 -corridorHalfX - 1.5f * TILE_X,
@@ -969,9 +848,10 @@ namespace EducationalGame.Editor
             };
             foreach (float x in leftDivCols)
             {
-                SpawnWall(prefabs.WallSolid, new Vector3(x, 0f, z), wallRotX, PIVOT_WALL_SOLID, rootTransform, wallScaleX);
+                SpawnWall(prefabs.WallSolid, new Vector3(x, 0f, 0f), wallRotX, PIVOT_WALL_SOLID, rootTransform, wallScaleX);
             }
 
+            // Divisória entre Sala 2 e Sala 4 (X de +4.42m a +17.68m = 3 módulos sólidos)
             float[] rightDivCols = {
                 corridorHalfX + 0.5f * TILE_X,
                 corridorHalfX + 1.5f * TILE_X,
@@ -979,7 +859,7 @@ namespace EducationalGame.Editor
             };
             foreach (float x in rightDivCols)
             {
-                SpawnWall(prefabs.WallSolid, new Vector3(x, 0f, z), wallRotX, PIVOT_WALL_SOLID, rootTransform, wallScaleX);
+                SpawnWall(prefabs.WallSolid, new Vector3(x, 0f, 0f), wallRotX, PIVOT_WALL_SOLID, rootTransform, wallScaleX);
             }
         }
 
@@ -988,12 +868,6 @@ namespace EducationalGame.Editor
         // -------------------------------------------------------------------------
         private static void SpawnClassroomFurniture(Transform furnitureGroup, PrefabBundle prefabs, RoomDefinition def)
         {
-            if (!def.HasMission)
-            {
-                SpawnAmbienceFurniture(furnitureGroup, prefabs, def);
-                return;
-            }
-
             float roomCenterX = (def.MinX + def.MaxX) * 0.5f;
             float roomCenterZ = (def.MinZ + def.MaxZ) * 0.5f;
 
@@ -1169,7 +1043,6 @@ namespace EducationalGame.Editor
                 float oppositeWallX = def.MaxX - 0.13f; // ou -0.13
                 GameObject mathBoard = Spawn(prefabs.NoticeBoard, new Vector3(oppositeWallX, 1.6f, roomCenterZ), Quaternion.Euler(0f, -90f, 0f), furnitureGroup);
                 mathBoard.name = "Math_Formulas_Board";
-                AttachClue(mathBoard, "Quadro de fórmulas", "A área de um retângulo é a largura multiplicada pelo comprimento. O que resta de uma fração é o total menos a parte usada. Um desconto retira uma parcela do preço, não soma.");
             }
             else if (def.Name.Contains("Portugues"))
             {
@@ -1178,7 +1051,6 @@ namespace EducationalGame.Editor
                 Quaternion bookcaseRot = def.BoardRotY == 0f ? Quaternion.Euler(0f, 180f, 0f) : Quaternion.identity;
                 GameObject literatureShelf = Spawn(prefabs.BookcaseWithBooks, bookcasePos, bookcaseRot, furnitureGroup);
                 literatureShelf.name = "Portuguese_Literature_Shelf";
-                AttachClue(literatureShelf, "Estante de literatura", "Quando haver significa existir, ele permanece no singular. A sílaba forte da proparoxítona fica na antepenúltima. Metáfora é uma comparação feita sem usar a palavra como.");
             }
             else if (def.Name.Contains("Historia"))
             {
@@ -1186,7 +1058,6 @@ namespace EducationalGame.Editor
                 float historyWallX = def.MinX + 0.85f;
                 GameObject historyVitrine = Spawn(prefabs.Showcase, new Vector3(historyWallX, 0f, roomCenterZ), Quaternion.Euler(0f, 90f, 0f), furnitureGroup);
                 historyVitrine.name = "History_Artifacts_Showcase";
-                AttachClue(historyVitrine, "Vitrine histórica", "Pirâmides e esfinge pertencem a uma civilização do vale do Nilo. A escravidão no Brasil terminou com a última lei abolicionista, depois da do Ventre Livre e da dos Sexagenários. A ONU nasceu no mesmo ano em que a Segunda Guerra acabou.");
             }
             else if (def.Name.Contains("Logica"))
             {
@@ -1196,9 +1067,7 @@ namespace EducationalGame.Editor
                 GameObject logicDesk = Spawn(prefabs.TeacherDesk, new Vector3(techDeskX, 0f, techDeskZ), Quaternion.Euler(0f, -90f, 0f), furnitureGroup);
                 logicDesk.name = "Logic_Maker_Workstation";
 
-                GameObject logicComputer = Spawn(prefabs.Computer, new Vector3(techDeskX, 1.15f, techDeskZ), Quaternion.Euler(0f, -90f, 0f), furnitureGroup);
-                logicComputer.name = "Logic_Clue_Computer";
-                AttachClue(logicComputer, "Terminal de lógica", "Se a condição não se cumpre, o caminho seguido é o alternativo. Se cada termo é o dobro do anterior, continue dobrando. O operador que só vale com as duas partes verdadeiras não é o OU. Quando o número de repetições já é conhecido, use um laço com início, limite e passo.");
+                Spawn(prefabs.Computer, new Vector3(techDeskX, 1.15f, techDeskZ), Quaternion.Euler(0f, -90f, 0f), furnitureGroup);
                 Spawn(prefabs.TeacherChair, new Vector3(techDeskX - 0.7f, 0f, techDeskZ), Quaternion.Euler(0f, 90f, 0f), furnitureGroup);
             }
 
@@ -1287,34 +1156,6 @@ namespace EducationalGame.Editor
                 Undo.RegisterCreatedObjectUndo(progressObj, "Create School Progress Manager");
             }
 
-            if (Object.FindAnyObjectByType<SchoolMissionManager>() == null)
-            {
-                GameObject missionObj = new GameObject("School_Mission_Manager");
-                missionObj.AddComponent<SchoolMissionManager>();
-                Undo.RegisterCreatedObjectUndo(missionObj, "Create School Mission Manager");
-            }
-
-            if (Object.FindAnyObjectByType<SchoolObjectiveHud>() == null)
-            {
-                GameObject objectiveObj = new GameObject("School_Objective_Hud");
-                objectiveObj.AddComponent<SchoolObjectiveHud>();
-                Undo.RegisterCreatedObjectUndo(objectiveObj, "Create Objective Hud");
-            }
-
-            if (Object.FindAnyObjectByType<ExamineController>() == null)
-            {
-                GameObject examineObj = new GameObject("Examine_Controller");
-                examineObj.AddComponent<ExamineController>();
-                Undo.RegisterCreatedObjectUndo(examineObj, "Create Examine Controller");
-            }
-
-            if (Object.FindAnyObjectByType<SchoolCompletionManager>() == null)
-            {
-                GameObject completionObj = new GameObject("School_Completion_Manager");
-                completionObj.AddComponent<SchoolCompletionManager>();
-                Undo.RegisterCreatedObjectUndo(completionObj, "Create Completion Manager");
-            }
-
             if (Object.FindAnyObjectByType<QuizUIManager>() == null)
             {
                 GameObject quizManagerObj = new GameObject("Quiz_Manager");
@@ -1333,7 +1174,6 @@ namespace EducationalGame.Editor
             {
                 if (mf.sharedMesh == null) continue;
                 if (mf.gameObject.name == "Floor_Glow_Marker") continue;
-                if (mf.gameObject.name == "Door_LockVisual") continue;
 
                 Collider col = mf.GetComponent<Collider>();
                 if (col == null)
@@ -1392,7 +1232,7 @@ namespace EducationalGame.Editor
         // -------------------------------------------------------------------------
         // Utilitários de Instanciação e Posicionamento com Compensação de Pivô
         // -------------------------------------------------------------------------
-        private static GameObject SpawnWall(GameObject prefab, Vector3 targetCenter, Quaternion rotation, Vector3 pivotOffset, Transform parent, Vector3? scale = null, bool sealOpening = false)
+        private static GameObject SpawnWall(GameObject prefab, Vector3 targetCenter, Quaternion rotation, Vector3 pivotOffset, Transform parent, Vector3? scale = null)
         {
             Vector3 scaledOffset = pivotOffset;
             if (scale.HasValue)
@@ -1400,12 +1240,7 @@ namespace EducationalGame.Editor
                 scaledOffset = Vector3.Scale(pivotOffset, scale.Value);
             }
             Vector3 spawnPos = targetCenter - (rotation * scaledOffset);
-            GameObject wall = Spawn(prefab, spawnPos, rotation, parent, scale);
-            if (sealOpening)
-            {
-                CreateWindowSeal(parent, targetCenter, rotation, scale);
-            }
-            return wall;
+            return Spawn(prefab, spawnPos, rotation, parent, scale);
         }
 
         private static GameObject CreateChild(Transform parent, string name)
@@ -1438,259 +1273,6 @@ namespace EducationalGame.Editor
 
             Undo.RegisterCreatedObjectUndo(instance, "Generate School Map");
             return instance;
-        }
-
-        private static void AttachClue(GameObject target, string title, string body)
-        {
-            if (target == null) return;
-            ExaminableClue clue = target.GetComponent<ExaminableClue>();
-            if (clue == null)
-            {
-                clue = target.AddComponent<ExaminableClue>();
-            }
-            clue.Configure(title, body, 3f);
-        }
-
-        private static string LockedMessageFor(RoomDefinition def)
-        {
-            switch (def.Number)
-            {
-                case 2: return "Sala bloqueada — conclua Matemática primeiro";
-                case 3: return "Sala bloqueada — conclua Português primeiro";
-                case 4: return "Sala bloqueada — conclua História primeiro";
-                default: return "Sala bloqueada";
-            }
-        }
-
-        private static RoomDoorLock SpawnDoorLock(Transform parent, string name, Vector3 position, Vector3 solidCenter, Vector3 solidSize, Vector3 triggerCenter, Vector3 triggerSize, string message, bool blocked, Transform[] doorLeaves)
-        {
-            GameObject root = new GameObject(name);
-            root.transform.SetParent(parent, false);
-            root.transform.position = position;
-            Undo.RegisterCreatedObjectUndo(root, "Generate School Map");
-
-            BoxCollider solid = root.AddComponent<BoxCollider>();
-            solid.center = solidCenter;
-            solid.size = solidSize;
-            solid.isTrigger = false;
-
-            BoxCollider trigger = root.AddComponent<BoxCollider>();
-            trigger.center = triggerCenter;
-            trigger.size = triggerSize;
-            trigger.isTrigger = true;
-
-            RoomDoorLock doorLock = root.AddComponent<RoomDoorLock>();
-            doorLock.Build(solid, trigger, message, blocked, doorLeaves);
-            return doorLock;
-        }
-
-        private static void SpawnOfficialExit(Transform doorsGroup, Transform wallsGroup, PrefabBundle prefabs, float wallX, float doorZ, Quaternion wallRot, Vector3 scale)
-        {
-            GameObject exitDoor = SpawnDoorway(doorsGroup, wallsGroup, prefabs, wallX, doorZ, wallRot, scale);
-
-            GameObject gate = new GameObject("Saida_Oficial");
-            gate.transform.SetParent(doorsGroup, false);
-            gate.transform.position = new Vector3(wallX, 0f, doorZ);
-            Undo.RegisterCreatedObjectUndo(gate, "Generate School Map");
-
-            GameObject blocker = new GameObject("Exit_LockBlocker");
-            blocker.transform.SetParent(gate.transform, false);
-            blocker.transform.localPosition = new Vector3(0f, WALL_HEIGHT * 0.5f, 0f);
-            blocker.transform.localRotation = Quaternion.identity;
-            BoxCollider box = blocker.AddComponent<BoxCollider>();
-            box.size = new Vector3(TILE_X * 0.72f, WALL_HEIGHT * 0.92f, 0.5f);
-
-            BoxCollider prompt = gate.AddComponent<BoxCollider>();
-            prompt.isTrigger = true;
-            prompt.center = new Vector3(0f, 1.2f, 0.9f);
-            prompt.size = new Vector3(TILE_X * 0.7f, 2.2f, 1.2f);
-
-            RoomDoorLock doorLock = gate.AddComponent<RoomDoorLock>();
-            doorLock.Build(box, prompt, "Saída trancada — o portão ainda não foi liberado", true, CollectDoorLeaves(exitDoor));
-
-            SchoolExitGate exit = gate.AddComponent<SchoolExitGate>();
-            exit.Configure(box, doorLock);
-
-            SpawnSign(gate.transform, "Saída", new Vector3(wallX, 2.7f, doorZ + 0.35f), 180f);
-        }
-
-        private static void SpawnAmbienceFurniture(Transform furnitureGroup, PrefabBundle prefabs, RoomDefinition def)
-        {
-            float roomCenterX = (def.MinX + def.MaxX) * 0.5f;
-            float roomCenterZ = (def.MinZ + def.MaxZ) * 0.5f;
-            float deskZ = def.BoardZ - 2.6f;
-
-            if (def.Name.Contains("Coordenacao"))
-            {
-                GameObject desk = Spawn(prefabs.TeacherDesk, new Vector3(roomCenterX, 0f, deskZ), Quaternion.Euler(0f, 180f, 0f), furnitureGroup);
-                desk.name = "Coordination_Desk";
-                Spawn(prefabs.TeacherChair, new Vector3(roomCenterX, 0f, deskZ + 0.8f), Quaternion.Euler(0f, 180f, 0f), furnitureGroup);
-                Spawn(prefabs.NoticeBoard, new Vector3(roomCenterX, 1.6f, def.BoardZ - 0.2f), Quaternion.Euler(0f, 180f, 0f), furnitureGroup);
-                Spawn(prefabs.StudentChair, new Vector3(roomCenterX - 1.6f, 0f, roomCenterZ), Quaternion.Euler(0f, 90f, 0f), furnitureGroup);
-                Spawn(prefabs.StudentChair, new Vector3(roomCenterX + 1.6f, 0f, roomCenterZ), Quaternion.Euler(0f, -90f, 0f), furnitureGroup);
-                return;
-            }
-
-            float deskX = def.MaxX - 1.3f;
-            float[] labZs = { def.MinZ + 3.2f, roomCenterZ, def.MaxZ - 3.2f };
-            for (int i = 0; i < labZs.Length; i++)
-            {
-                GameObject labDesk = Spawn(prefabs.TeacherDesk, new Vector3(deskX, 0f, labZs[i]), Quaternion.Euler(0f, -90f, 0f), furnitureGroup);
-                labDesk.name = $"Lab_Desk_{i + 1}";
-                Spawn(prefabs.Computer, new Vector3(deskX, 1.15f, labZs[i]), Quaternion.Euler(0f, -90f, 0f), furnitureGroup);
-                Spawn(prefabs.TeacherChair, new Vector3(deskX - 0.8f, 0f, labZs[i]), Quaternion.Euler(0f, 90f, 0f), furnitureGroup);
-            }
-        }
-
-        private static void GenerateSite(Transform root, PrefabBundle prefabs)
-        {
-            GameObject site = CreateChild(root, "Terreno");
-            Transform ground = CreateChild(site.transform, "Ground").transform;
-            Transform fence = CreateChild(site.transform, "Perimeter").transform;
-
-            float minX = -4f * TILE_X - SITE_MARGIN;
-            float maxX = 4f * TILE_X + SITE_MARGIN;
-            float minZ = -5f * TILE_Z - 14f;
-            float maxZ = 8f * TILE_Z + SITE_MARGIN;
-            float hallWest = -2f * TILE_X;
-            float hallEast = 2f * TILE_X;
-            float wingWest = -4f * TILE_X;
-            float wingEast = 4f * TILE_X;
-            float hallSouth = -5f * TILE_Z;
-            float wingSouth = -3f * TILE_Z;
-            float wingNorth = 6f * TILE_Z;
-            float libraryNorth = 8f * TILE_Z;
-
-            CreateGroundSlab(ground, "Ground_SouthYard", minX, maxX, minZ, hallSouth + 0.2f);
-            CreateGroundSlab(ground, "Ground_WestHall", minX, hallWest, hallSouth, wingSouth);
-            CreateGroundSlab(ground, "Ground_EastHall", hallEast, maxX, hallSouth, wingSouth);
-            CreateGroundSlab(ground, "Ground_WestWing", minX, wingWest, wingSouth, wingNorth);
-            CreateGroundSlab(ground, "Ground_EastWing", wingEast, maxX, wingSouth, wingNorth);
-            CreateGroundSlab(ground, "Ground_WestLibrary", minX, hallWest, wingNorth, libraryNorth);
-            CreateGroundSlab(ground, "Ground_EastLibrary", hallEast, maxX, wingNorth, libraryNorth);
-            CreateGroundSlab(ground, "Ground_NorthYard", minX, maxX, libraryNorth - 0.2f, maxZ);
-
-            CreateBoundaryBox(fence, "Boundary_South", new Vector3((minX + maxX) * 0.5f, WALL_HEIGHT * 0.5f, minZ), new Vector3(maxX - minX + 0.8f, WALL_HEIGHT, 0.6f));
-            CreateBoundaryBox(fence, "Boundary_North", new Vector3((minX + maxX) * 0.5f, WALL_HEIGHT * 0.5f, maxZ), new Vector3(maxX - minX + 0.8f, WALL_HEIGHT, 0.6f));
-            CreateBoundaryBox(fence, "Boundary_West", new Vector3(minX, WALL_HEIGHT * 0.5f, (minZ + maxZ) * 0.5f), new Vector3(0.6f, WALL_HEIGHT, maxZ - minZ + 0.8f));
-            CreateBoundaryBox(fence, "Boundary_East", new Vector3(maxX, WALL_HEIGHT * 0.5f, (minZ + maxZ) * 0.5f), new Vector3(0.6f, WALL_HEIGHT, maxZ - minZ + 0.8f));
-
-            SpawnFenceAlongZ(fence, prefabs, minX + 0.45f, minZ, maxZ, 180f);
-            SpawnFenceAlongZ(fence, prefabs, maxX - 0.45f, minZ, maxZ, 0f);
-            SpawnFenceAlongX(fence, prefabs, minZ + 0.45f, minX, maxX);
-            SpawnFenceAlongX(fence, prefabs, maxZ - 0.45f, minX, maxX);
-        }
-
-        private static void SpawnFenceAlongZ(Transform parent, PrefabBundle prefabs, float x, float minZ, float maxZ, float yaw)
-        {
-            Quaternion rotation = Quaternion.Euler(0f, yaw, 0f);
-            for (float z = minZ + TILE_Z * 0.5f; z < maxZ; z += TILE_Z)
-            {
-                SpawnWall(prefabs.WallSolid, new Vector3(x, 0f, z), rotation, PIVOT_WALL_SOLID, parent);
-            }
-        }
-
-        private static void SpawnFenceAlongX(Transform parent, PrefabBundle prefabs, float z, float minX, float maxX)
-        {
-            Vector3 wallScaleX = new Vector3(1f, 1f, TILE_X / TILE_Z);
-            Quaternion rotation = Quaternion.Euler(0f, 90f, 0f);
-            for (float x = minX + TILE_X * 0.5f; x < maxX; x += TILE_X)
-            {
-                SpawnWall(prefabs.WallSolid, new Vector3(x, 0f, z), rotation, PIVOT_WALL_SOLID, parent, wallScaleX);
-            }
-        }
-
-        private static void CreateGroundSlab(Transform parent, string name, float minX, float maxX, float minZ, float maxZ)
-        {
-            float width = maxX - minX;
-            float depth = maxZ - minZ;
-            if (width < 0.2f || depth < 0.2f) return;
-
-            GameObject slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            slab.name = name;
-            slab.transform.SetParent(parent, false);
-            slab.transform.position = new Vector3((minX + maxX) * 0.5f, -0.25f, (minZ + maxZ) * 0.5f);
-            slab.transform.localScale = new Vector3(width, 0.5f, depth);
-            Undo.RegisterCreatedObjectUndo(slab, "Generate School Map");
-
-            Renderer renderer = slab.GetComponent<Renderer>();
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            if (renderer != null && shader != null)
-            {
-                Material mat = new Material(shader);
-                Color color = new Color(0.34f, 0.38f, 0.28f, 1f);
-                mat.color = color;
-                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
-                renderer.sharedMaterial = mat;
-            }
-        }
-
-        private static void CreateBoundaryBox(Transform parent, string name, Vector3 center, Vector3 size)
-        {
-            GameObject boxObj = new GameObject(name);
-            boxObj.transform.SetParent(parent, false);
-            boxObj.transform.position = center;
-            BoxCollider box = boxObj.AddComponent<BoxCollider>();
-            box.size = size;
-            Undo.RegisterCreatedObjectUndo(boxObj, "Generate School Map");
-        }
-
-        private static void CreateWindowSeal(Transform parent, Vector3 targetCenter, Quaternion rotation, Vector3? scale)
-        {
-            float length = scale.HasValue ? TILE_Z * scale.Value.z : TILE_Z;
-            GameObject seal = new GameObject("Window_Seal");
-            seal.transform.SetParent(parent, false);
-            seal.transform.position = targetCenter + Vector3.up * (WALL_HEIGHT * 0.5f);
-            seal.transform.rotation = rotation;
-            BoxCollider box = seal.AddComponent<BoxCollider>();
-            box.size = new Vector3(0.6f, WALL_HEIGHT, length);
-            Undo.RegisterCreatedObjectUndo(seal, "Generate School Map");
-        }
-
-        private static void SpawnSign(Transform parent, string label, Vector3 position, float yawDegrees)
-        {
-            GameObject sign = new GameObject("Sign_" + label);
-            sign.transform.SetParent(parent, false);
-            sign.transform.position = position;
-            sign.transform.rotation = Quaternion.Euler(0f, yawDegrees, 0f);
-            Undo.RegisterCreatedObjectUndo(sign, "Generate School Map");
-
-            GameObject canvasObj = new GameObject("Canvas");
-            canvasObj.transform.SetParent(sign.transform, false);
-            Canvas canvas = canvasObj.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.WorldSpace;
-            RectTransform rect = canvasObj.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(340f, 78f);
-            rect.localScale = Vector3.one * 0.01f;
-
-            GameObject background = new GameObject("Background");
-            background.transform.SetParent(canvasObj.transform, false);
-            RectTransform backgroundRect = background.AddComponent<RectTransform>();
-            backgroundRect.anchorMin = Vector2.zero;
-            backgroundRect.anchorMax = Vector2.one;
-            backgroundRect.offsetMin = Vector2.zero;
-            backgroundRect.offsetMax = Vector2.zero;
-            Image image = background.AddComponent<Image>();
-            image.color = new Color(0.08f, 0.1f, 0.16f, 0.94f);
-
-            GameObject textObj = new GameObject("Label");
-            textObj.transform.SetParent(background.transform, false);
-            RectTransform textRect = textObj.AddComponent<RectTransform>();
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = new Vector2(10f, 6f);
-            textRect.offsetMax = new Vector2(-10f, -6f);
-            Text text = textObj.AddComponent<Text>();
-            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            text.font = font;
-            text.fontSize = 32;
-            text.fontStyle = FontStyle.Bold;
-            text.alignment = TextAnchor.MiddleCenter;
-            text.color = Color.white;
-            text.horizontalOverflow = HorizontalWrapMode.Overflow;
-            text.verticalOverflow = VerticalWrapMode.Overflow;
-            text.text = label;
         }
     }
 }
