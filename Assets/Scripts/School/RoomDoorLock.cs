@@ -58,9 +58,16 @@ namespace EducationalGame.School
 
             for (int i = 0; i < doorLeaves.Length; i++)
             {
-                if (doorLeaves[i] == null) continue;
+                Transform leaf = doorLeaves[i];
+                if (leaf == null) continue;
+
+                // O prefab da porta nasce estático. Sem isso, a malha não acompanha a rotação.
+                leaf.gameObject.isStatic = false;
+
+                // Abertura no espaço local da folha. O pai já está girado para a esquerda,
+                // a direita e a biblioteca, então o mesmo ângulo abre para o corredor nos dois lados.
                 float openYaw = (i % 2 == 0) ? 75f : -75f;
-                doorLeaves[i].localRotation = Quaternion.Euler(0f, blocked ? 0f : openYaw, 0f);
+                leaf.localRotation = Quaternion.Euler(0f, blocked ? 0f : openYaw, 0f);
             }
         }
 

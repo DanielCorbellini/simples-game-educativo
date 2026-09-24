@@ -840,7 +840,7 @@ namespace EducationalGame.Editor
             Spawn(prefabs.Keyboard, new Vector3(pcDeskX - 0.25f, 1.15f, 24.0f + zShift), Quaternion.Euler(0f, -90f, 0f), propsGroup);
             Spawn(prefabs.TeacherChair, new Vector3(pcDeskX - 0.75f, 0f, 24.0f + zShift), Quaternion.Euler(0f, 90f, 0f), propsGroup);
 
-            GameObject showcaseRare = Spawn(prefabs.Showcase, new Vector3(-1.2f, 0f, 17.2f + zShift), Quaternion.Euler(0f, 0f, 0f), propsGroup);
+            GameObject showcaseRare = Spawn(prefabs.Showcase, new Vector3(-1.2f, 0f, 22.4f + zShift), Quaternion.Euler(0f, 0f, 0f), propsGroup);
             showcaseRare.name = "Showcase_Rare_Manuscripts";
 
             Spawn(prefabs.FireExtinguisher, new Vector3(westX + 0.08f, 1.1f, 17.2f + zShift), Quaternion.Euler(0f, 90f, 0f), propsGroup);
@@ -868,6 +868,13 @@ namespace EducationalGame.Editor
                 true,
                 CombineLeaves(libraryDoorLeft, libraryDoorRight));
             libraryMarker.BindDoorLock(libraryLock);
+
+            GameObject finalDesk = Spawn(prefabs.TeacherDesk, new Vector3(0f, 0f, libraryZ + 3.4f), Quaternion.Euler(0f, 180f, 0f), propsGroup);
+            finalDesk.name = "Final_Challenge_Desk";
+            GameObject finalTerminal = Spawn(prefabs.Computer, new Vector3(0f, 1.15f, libraryZ + 3.2f), Quaternion.Euler(0f, 180f, 0f), propsGroup);
+            finalTerminal.name = "Final_Challenge_Terminal";
+            finalTerminal.AddComponent<LibraryFinalChallenge>();
+
             SpawnSign(libNode.transform, "Biblioteca", new Vector3(0f, 2.65f, 6f * TILE_Z - 0.2f), 0f);
         }
 
@@ -908,17 +915,21 @@ namespace EducationalGame.Editor
         {
             Transform leaf1 = doorInstance.transform.Find("Cube_10");
             Transform leaf2 = doorInstance.transform.Find("Cube_14");
+            PrepareDoorLeaf(leaf1);
+            PrepareDoorLeaf(leaf2);
+        }
 
-            if (leaf1 != null)
-            {
-                Collider c = leaf1.GetComponent<Collider>();
-                if (c != null) c.isTrigger = true;
-            }
+        private static void PrepareDoorLeaf(Transform leaf)
+        {
+            if (leaf == null) return;
 
-            if (leaf2 != null)
+            GameObjectUtility.SetStaticEditorFlags(leaf.gameObject, 0);
+            leaf.gameObject.isStatic = false;
+
+            Collider collider = leaf.GetComponent<Collider>();
+            if (collider != null)
             {
-                Collider c = leaf2.GetComponent<Collider>();
-                if (c != null) c.isTrigger = true;
+                collider.isTrigger = true;
             }
         }
 
@@ -1158,6 +1169,7 @@ namespace EducationalGame.Editor
                 float oppositeWallX = def.MaxX - 0.13f; // ou -0.13
                 GameObject mathBoard = Spawn(prefabs.NoticeBoard, new Vector3(oppositeWallX, 1.6f, roomCenterZ), Quaternion.Euler(0f, -90f, 0f), furnitureGroup);
                 mathBoard.name = "Math_Formulas_Board";
+                AttachClue(mathBoard, "Quadro de fórmulas", "A área de um retângulo é a largura multiplicada pelo comprimento. O que resta de uma fração é o total menos a parte usada. Um desconto retira uma parcela do preço, não soma.");
             }
             else if (def.Name.Contains("Portugues"))
             {
@@ -1166,6 +1178,7 @@ namespace EducationalGame.Editor
                 Quaternion bookcaseRot = def.BoardRotY == 0f ? Quaternion.Euler(0f, 180f, 0f) : Quaternion.identity;
                 GameObject literatureShelf = Spawn(prefabs.BookcaseWithBooks, bookcasePos, bookcaseRot, furnitureGroup);
                 literatureShelf.name = "Portuguese_Literature_Shelf";
+                AttachClue(literatureShelf, "Estante de literatura", "Quando haver significa existir, ele permanece no singular. A sílaba forte da proparoxítona fica na antepenúltima. Metáfora é uma comparação feita sem usar a palavra como.");
             }
             else if (def.Name.Contains("Historia"))
             {
@@ -1173,6 +1186,7 @@ namespace EducationalGame.Editor
                 float historyWallX = def.MinX + 0.85f;
                 GameObject historyVitrine = Spawn(prefabs.Showcase, new Vector3(historyWallX, 0f, roomCenterZ), Quaternion.Euler(0f, 90f, 0f), furnitureGroup);
                 historyVitrine.name = "History_Artifacts_Showcase";
+                AttachClue(historyVitrine, "Vitrine histórica", "Pirâmides e esfinge pertencem a uma civilização do vale do Nilo. A escravidão no Brasil terminou com a última lei abolicionista, depois da do Ventre Livre e da dos Sexagenários. A ONU nasceu no mesmo ano em que a Segunda Guerra acabou.");
             }
             else if (def.Name.Contains("Logica"))
             {
@@ -1182,7 +1196,9 @@ namespace EducationalGame.Editor
                 GameObject logicDesk = Spawn(prefabs.TeacherDesk, new Vector3(techDeskX, 0f, techDeskZ), Quaternion.Euler(0f, -90f, 0f), furnitureGroup);
                 logicDesk.name = "Logic_Maker_Workstation";
 
-                Spawn(prefabs.Computer, new Vector3(techDeskX, 1.15f, techDeskZ), Quaternion.Euler(0f, -90f, 0f), furnitureGroup);
+                GameObject logicComputer = Spawn(prefabs.Computer, new Vector3(techDeskX, 1.15f, techDeskZ), Quaternion.Euler(0f, -90f, 0f), furnitureGroup);
+                logicComputer.name = "Logic_Clue_Computer";
+                AttachClue(logicComputer, "Terminal de lógica", "Se a condição não se cumpre, o caminho seguido é o alternativo. Se cada termo é o dobro do anterior, continue dobrando. O operador que só vale com as duas partes verdadeiras não é o OU. Quando o número de repetições já é conhecido, use um laço com início, limite e passo.");
                 Spawn(prefabs.TeacherChair, new Vector3(techDeskX - 0.7f, 0f, techDeskZ), Quaternion.Euler(0f, 90f, 0f), furnitureGroup);
             }
 
@@ -1276,6 +1292,27 @@ namespace EducationalGame.Editor
                 GameObject missionObj = new GameObject("School_Mission_Manager");
                 missionObj.AddComponent<SchoolMissionManager>();
                 Undo.RegisterCreatedObjectUndo(missionObj, "Create School Mission Manager");
+            }
+
+            if (Object.FindAnyObjectByType<SchoolObjectiveHud>() == null)
+            {
+                GameObject objectiveObj = new GameObject("School_Objective_Hud");
+                objectiveObj.AddComponent<SchoolObjectiveHud>();
+                Undo.RegisterCreatedObjectUndo(objectiveObj, "Create Objective Hud");
+            }
+
+            if (Object.FindAnyObjectByType<ExamineController>() == null)
+            {
+                GameObject examineObj = new GameObject("Examine_Controller");
+                examineObj.AddComponent<ExamineController>();
+                Undo.RegisterCreatedObjectUndo(examineObj, "Create Examine Controller");
+            }
+
+            if (Object.FindAnyObjectByType<SchoolCompletionManager>() == null)
+            {
+                GameObject completionObj = new GameObject("School_Completion_Manager");
+                completionObj.AddComponent<SchoolCompletionManager>();
+                Undo.RegisterCreatedObjectUndo(completionObj, "Create Completion Manager");
             }
 
             if (Object.FindAnyObjectByType<QuizUIManager>() == null)
@@ -1401,6 +1438,17 @@ namespace EducationalGame.Editor
 
             Undo.RegisterCreatedObjectUndo(instance, "Generate School Map");
             return instance;
+        }
+
+        private static void AttachClue(GameObject target, string title, string body)
+        {
+            if (target == null) return;
+            ExaminableClue clue = target.GetComponent<ExaminableClue>();
+            if (clue == null)
+            {
+                clue = target.AddComponent<ExaminableClue>();
+            }
+            clue.Configure(title, body, 3f);
         }
 
         private static string LockedMessageFor(RoomDefinition def)

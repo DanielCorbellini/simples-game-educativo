@@ -3,7 +3,7 @@ using UnityEngine;
 namespace EducationalGame.School
 {
     /// <summary>
-    /// Saída oficial. Nesta etapa permanece trancada mesmo depois da biblioteca.
+    /// Saída oficial. Permanece trancada até o desafio final da biblioteca.
     /// </summary>
     public class SchoolExitGate : MonoBehaviour
     {

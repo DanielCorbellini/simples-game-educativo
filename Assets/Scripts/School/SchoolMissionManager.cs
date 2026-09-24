@@ -41,6 +41,19 @@ namespace EducationalGame.School
             ApplyProgression();
         }
 
+        public string CurrentObjective
+        {
+            get
+            {
+                if (!IsCompleted(ClassroomSubject.Matematica)) return "Objetivo: Vá até a Sala 01 — Matemática";
+                if (!IsCompleted(ClassroomSubject.Portugues)) return "Objetivo: Vá até a Sala 02 — Português";
+                if (!IsCompleted(ClassroomSubject.Historia)) return "Objetivo: Vá até a Sala 03 — História";
+                if (!IsCompleted(ClassroomSubject.Logica)) return "Objetivo: Vá até a Sala 04 — Lógica";
+                if (!LibraryFinalChallenge.IsSolved) return "Objetivo: Vá até a Biblioteca";
+                return "Objetivo: Vá até a saída da escola";
+            }
+        }
+
         private void OnDisable()
         {
             if (SchoolProgressManager.Instance != null)
@@ -68,7 +81,18 @@ namespace EducationalGame.School
 
                 if (marker.Role == RoomRole.FinalChallenge)
                 {
-                    marker.SetAccessState(logicDone ? RoomAccessState.Available : RoomAccessState.Locked);
+                    if (!logicDone)
+                    {
+                        marker.SetAccessState(RoomAccessState.Locked);
+                    }
+                    else if (LibraryFinalChallenge.IsSolved)
+                    {
+                        marker.SetAccessState(RoomAccessState.Completed);
+                    }
+                    else
+                    {
+                        marker.SetAccessState(RoomAccessState.Available);
+                    }
                     continue;
                 }
 
@@ -94,7 +118,7 @@ namespace EducationalGame.School
             SchoolExitGate exit = FindAnyObjectByType<SchoolExitGate>();
             if (exit != null)
             {
-                exit.SetLocked(true);
+                exit.SetLocked(!LibraryFinalChallenge.IsSolved);
             }
         }
 
